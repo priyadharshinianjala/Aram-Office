@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add a Document | Aram Office</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 30px 16px;
+            font-family: Arial, sans-serif;
+            background: #f3f6fb;
+            color: #263247;
+        }
+
+        .container {
+            max-width: 650px;
+            margin: 0 auto;
+            padding: 30px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #183b66;
+        }
+
+        .page-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin: -8px 0 24px;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .page-actions form { margin: 0; }
+        .page-account { display: flex; align-items: center; gap: 10px; }
+        .page-actions button {
+            padding: 7px 11px;
+            font-size: 13px;
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .description {
+            color: #64748b;
+            margin-bottom: 25px;
+        }
+
+        .error-message {
+            padding: 12px;
+            margin-bottom: 20px;
+            color: #b91c1c;
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+        }
+
+        .success-message {
+            padding: 12px;
+            margin-bottom: 20px;
+            color: #166534;
+            background: #dcfce7;
+            border: 1px solid #bbf7d0;
+            border-radius: 6px;
+        }
+
+        label {
+            display: block;
+            margin: 16px 0 7px;
+            font-weight: bold;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 11px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 15px;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        button,
+        .back-link {
+            display: inline-block;
+            padding: 11px 18px;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        button {
+            color: white;
+            background: #1d4ed8;
+        }
+
+        button:hover {
+            background: #1e40af;
+        }
+
+        .back-link {
+            color: #334155;
+            background: #e2e8f0;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+
+            .buttons {
+                flex-direction: column;
+            }
+
+            button,
+            .back-link {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Add a Document</h1>
+        <div class="page-actions">
+            <a th:href="@{/}">Back to Aram Office</a>
+            <span class="page-account">
+                <span th:text="${username}">Signed-in user</span>
+                <form th:action="@{/logout}" method="post">
+                    <button type="submit">Sign out</button>
+                </form>
+            </span>
+        </div>
+
+        <p class="description">
+            Add searchable document details and, optionally, attach the original PDF or image.
+            Documents are available to all enabled government officers after they sign in.
+        </p>
+
+        <p class="success-message"
+           th:if="${successMessage}"
+           th:text="${successMessage}"
+           role="status"></p>
+        <p class="error-message"
+           th:if="${errorMessage}"
+           th:text="${errorMessage}"
+           role="alert">
+        </p>
+
+        <form th:action="@{/documents/add}" method="post"
+              enctype="multipart/form-data" id="add-document-form">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+
+            <label for="id">Document ID</label>
+            <input type="text"
+                   id="id"
+                   name="id"
+                   th:value="${id}"
+                   placeholder="Example: D101"
+                   required>
+
+            <label for="title">Document Title</label>
+            <input type="text"
+                   id="title"
+                   name="title"
+                   th:value="${title}"
+                   placeholder="Enter document title"
+                   required>
+
+            <label for="category">Category</label>
+            <select id="category" name="category" required>
+                <option value="">Select a category</option>
+                <option value="circular"
+                        th:selected="${category == 'circular'}">
+                    Circular
+                </option>
+                <option value="notice"
+                        th:selected="${category == 'notice'}">
+                    Notice
+                </option>
+                <option value="order"
+                        th:selected="${category == 'order'}">
+                    Order
+                </option>
+                <option value="permit"
+                        th:selected="${category == 'permit'}">
+                    Permit
+                </option>
+                <option value="certificate"
+                        th:selected="${category == 'certificate'}">
+                    Certificate
+                </option>
+                <option value="scheme"
+                        th:selected="${category == 'scheme'}">
+                    Scheme
+                </option>
+                <option value="form"
+                        th:selected="${category == 'form'}">
+                    Form
+                </option>
+                <option value="other"
+                        th:selected="${category == 'other'}">
+                    Other
+                </option>
+            </select>
+
+            <label for="importance">Importance (1–5)</label>
+            <input type="number"
+                   id="importance"
+                   name="importance"
+                   min="1"
+                   max="5"
+                   th:value="${importance != null ? importance : 3}"
+                   required>
+
+            <label for="text">Document Content</label>
+            <textarea id="text"
+                      name="text"
+                      placeholder="Enter the document content, or a short description if attaching a file"
+                      th:text="${text}"></textarea>
+
+            <label for="file">Original PDF or image (optional)</label>
+            <input id="file"
+                   name="file"
+                   type="file"
+                   accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp">
+            <p class="description">
+                Supported formats: PDF, JPG/JPEG, PNG and WEBP. Maximum file size: 10 MB.
+                Files are checked on the server and stored outside the public web folder.
+            </p>
+
+            <label for="departmentId">Document department</label>
+            <select id="departmentId" name="departmentId" required>
+                <option value="" disabled th:selected="${departmentId == null or departmentId == ''}">
+                    Select a department
+                </option>
+                <option th:each="department : ${departments}"
+                        th:value="${department.id}"
+                        th:text="${department.name}"
+                        th:selected="${department.id == departmentId}">Department</option>
+            </select>
+
+            <div class="buttons">
+                <button type="submit">Save Document</button>
+
+                <a th:href="@{/}" class="back-link">
+                    Cancel
+                </a>
+            </div>
+
+        </form>
+    </div>
+    <script>
+        const documentFile = document.getElementById("file");
+        const documentContent = document.getElementById("text");
+
+        function updateDocumentRequirements() {
+            const attachingFile = documentFile.files.length > 0;
+            documentContent.required = !attachingFile;
+        }
+
+        documentFile.addEventListener("change", updateDocumentRequirements);
+        updateDocumentRequirements();
+    </script>
+</body>
+</html>

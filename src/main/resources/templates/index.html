@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#123c32">
+    <title>Aram Office | Document Services</title>
+    <link rel="stylesheet" th:href="@{/styles.css}">
+</head>
+<body class="archive-page">
+<div class="utility-bar">
+    <div class="archive-shell utility-inner">
+        <span>PUBLIC DOCUMENT ACCESS</span>
+        <span>Search · Retrieve · Verify</span>
+    </div>
+</div>
+
+<header class="archive-header">
+    <div class="archive-shell masthead">
+        <a class="archive-brand" th:href="@{/}" aria-label="Document Services home">
+            <span class="archive-emblem" aria-hidden="true">D</span>
+            <span>
+                <strong>ARAM OFFICE</strong>
+                <small>DOCUMENT SERVICES</small>
+            </span>
+        </a>
+        <a class="archive-manage" th:if="${isAdministrator}" th:href="@{/admin}">
+            <span aria-hidden="true">⚙</span> Officer administration
+        </a>
+        <a class="archive-manage" th:if="${isAdministrator}" th:href="@{/documents/add}">
+            <span aria-hidden="true">＋</span> Add a document
+        </a>
+        <div class="account-controls">
+            <span th:text="${username}">Signed-in user</span>
+            <form th:action="@{/logout}" method="post">
+                <button type="submit">Sign out</button>
+            </form>
+        </div>
+    </div>
+    <nav class="archive-nav" aria-label="Main navigation">
+        <div class="archive-shell nav-inner">
+            <a class="nav-current" th:href="@{/}">Document repository</a>
+            <a th:if="${!isOfficer}" th:href="@{/people/search}">Person search</a>
+            <a href="#browse-records">Browse records</a>
+            <a th:if="${isAdministrator}" th:href="@{/admin}">Officer administration</a>
+            <span class="nav-note">Public information and office records</span>
+        </div>
+    </nav>
+</header>
+
+<main>
+    <section class="archive-intro">
+        <div class="archive-shell intro-layout">
+            <div class="intro-copy">
+                <p class="archive-kicker">DOCUMENT SEARCH &amp; RETRIEVAL</p>
+                <h1>Find a government<br>document.</h1>
+                <p class="intro-description">
+                    Search the records repository by document ID, title, keyword, or category.
+                    Open a result to view its complete record.
+                </p>
+                <form method="get" th:action="@{/people/search}" class="person-search-form">
+                    <label for="person-query">Find a citizen's linked documents</label>
+                    <div class="person-search-controls">
+                        <input id="person-query"
+                               type="search"
+                               name="query"
+                               placeholder="Enter full or partial name, or citizen ID"
+                               maxlength="100"
+                               required>
+                        <button type="submit">Search people</button>
+                    </div>
+                </form>
+                <form method="get" th:action="@{/search}" class="archive-search">
+                    <label for="document-query">What document are you looking for?</label>
+                    <div class="search-controls">
+                        <input id="document-query"
+                               type="search"
+                               name="query"
+                               th:value="${query}"
+                               placeholder="Try a title, topic, keyword or ID such as D101"
+                               autocomplete="off">
+                        <input type="hidden" name="category" th:value="${activeCategory}">
+                        <button type="submit"><span aria-hidden="true">⌕</span> Search records</button>
+                    </div>
+                    <div class="popular-searches">
+                        <span>Popular searches:</span>
+                        <a th:href="@{/search(query='circular')}">Circular</a>
+                        <a th:href="@{/search(query='permit')}">Permit</a>
+                        <a th:href="@{/search(query='D101')}">Document ID</a>
+                    </div>
+                </form>
+            </div>
+            <aside class="repository-summary" aria-label="Repository information">
+                <p class="summary-heading">REPOSITORY AT A GLANCE</p>
+                <div class="summary-number">
+                    <strong th:text="${documentCount}">43</strong>
+                    <span>documents available</span>
+                </div>
+                <div class="summary-rule"></div>
+                <div class="summary-number">
+                    <strong th:text="${categoryCount}">6</strong>
+                    <span>record categories</span>
+                </div>
+                <p class="summary-footnote">Search results are ranked by relevance.</p>
+            </aside>
+        </div>
+    </section>
+
+    <section class="archive-shell browse-section" id="browse-records">
+        <div class="browse-heading">
+            <div>
+                <p class="archive-kicker">EXPLORE THE REPOSITORY</p>
+                <h2 th:if="${query == '' && activeCategory == ''}">Browse documents</h2>
+                <h2 th:unless="${query == '' && activeCategory == ''}">Document search results</h2>
+                <p>Choose a category or search the document archive.</p>
+            </div>
+            <div class="browse-count">
+                <strong th:text="${#lists.size(results)}">43</strong>
+                <span>records found</span>
+            </div>
+        </div>
+
+        <div class="archive-filter">
+            <span class="filter-label">Filter by category</span>
+            <div class="filter-options">
+                <a class="filter-option"
+                   th:classappend="${activeCategory == ''} ? ' filter-selected' : ''"
+                   th:href="@{/}">All records</a>
+                <a class="filter-option"
+                   th:each="category : ${categories}"
+                   th:classappend="${activeCategory == category} ? ' filter-selected' : ''"
+                   th:href="@{/search(category=${category},query=${query})}"
+                   th:text="${category}">Category</a>
+            </div>
+        </div>
+
+        <div th:if="${!#lists.isEmpty(suggestions)}" class="archive-suggestions">
+            <strong>Related search terms</strong>
+            <a th:each="suggestion : ${suggestions}"
+               th:href="@{/search(query=${suggestion},category=${activeCategory})}"
+               th:text="${suggestion}">suggestion</a>
+        </div>
+
+        <div class="archive-results" th:if="${!#lists.isEmpty(results)}">
+            <article class="archive-record" th:each="result : ${results}">
+                <div class="record-symbol" aria-hidden="true">▤</div>
+                <div class="record-main">
+                    <div class="record-overline">
+                        <span class="record-category" th:text="${result.document.category}">Category</span>
+                        <span class="record-id">Document ID: <strong th:text="${result.document.id}">D101</strong></span>
+                    </div>
+                    <h3>
+                        <a th:href="@{/documents/{id}(id=${result.document.id})}"
+                           th:text="${result.document.title}">Document title</a>
+                    </h3>
+                    <p th:text="${#strings.abbreviate(result.document.text, 180)}">Document summary</p>
+                    <span class="record-importance">
+                        Record importance:
+                        <strong th:text="${result.document.importance}">3</strong> / 5
+                    </span>
+                </div>
+                <a class="record-action"
+                   th:href="@{/documents/{id}(id=${result.document.id})}">
+                    View record <span aria-hidden="true">→</span>
+                </a>
+            </article>
+        </div>
+
+        <div th:if="${#lists.isEmpty(results)}" class="archive-empty">
+            <span aria-hidden="true">⌕</span>
+            <h3>No matching records found</h3>
+            <p>Try a different keyword or remove the category filter.</p>
+            <a th:href="@{/}">Browse all documents</a>
+        </div>
+    </section>
+</main>
+
+<footer class="archive-footer">
+    <div class="archive-shell footer-inner">
+        <span><strong>E-GOVERNANCE DOCUMENT SERVICES</strong><br>Document processing and retrieval system</span>
+        <a th:href="@{/}">Back to top ↑</a>
+    </div>
+</footer>
+</body>
+</html>

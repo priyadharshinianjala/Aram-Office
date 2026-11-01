@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#123c32">
+    <title>Citizen Documents | Aram Office</title>
+    <link rel="stylesheet" th:href="@{/styles.css}">
+</head>
+<body class="archive-page">
+<div class="utility-bar">
+    <div class="archive-shell utility-inner">
+        <span>ARAM OFFICE · SECURE RECORDS</span>
+        <span>Authorized staff access</span>
+    </div>
+</div>
+
+<header class="archive-header">
+    <div class="archive-shell masthead">
+        <a class="archive-brand" th:href="@{/}" aria-label="Aram Office home">
+            <span class="archive-emblem" aria-hidden="true">A</span>
+            <span><strong>ARAM OFFICE</strong><small>DOCUMENT SERVICES</small></span>
+        </a>
+        <div class="account-controls">
+            <span th:text="${username}">Signed-in user</span>
+            <form th:action="@{/logout}" method="post">
+                <button type="submit">Sign out</button>
+            </form>
+        </div>
+    </div>
+    <nav class="archive-nav" aria-label="Main navigation">
+        <div class="archive-shell nav-inner">
+            <a th:href="@{/}">Document repository</a>
+            <a class="nav-current" th:href="@{/people/search}">Person search</a>
+            <span class="nav-note">Authorized citizen record</span>
+        </div>
+    </nav>
+</header>
+
+<main class="archive-shell citizen-document-page">
+    <a class="people-back-link" th:href="@{/people/search}">← Back to person search</a>
+    <section class="citizen-profile-card">
+        <p class="archive-kicker">CITIZEN PROFILE</p>
+        <h1 th:text="${citizen.fullName}">Citizen Name</h1>
+        <p>Citizen ID: <strong th:text="${citizen.citizenId}">C001</strong></p>
+    </section>
+
+    <section class="citizen-documents-section">
+        <div class="people-result-heading">
+            <div>
+                <p class="archive-kicker">LINKED RECORDS</p>
+                <h2>Documents for this citizen</h2>
+                <p>Only documents explicitly linked to this citizen are shown.</p>
+            </div>
+            <span class="linked-document-count">
+                <strong th:text="${#lists.size(documents)}">0</strong> documents
+            </span>
+        </div>
+
+        <div class="archive-filter" th:if="${!#lists.isEmpty(categories)}">
+            <span class="filter-label">Filter by category</span>
+            <div class="filter-options">
+                <a class="filter-option"
+                   th:classappend="${activeCategory == ''} ? ' filter-selected' : ''"
+                   th:href="@{/people/{id}(id=${citizen.citizenId})}">All categories</a>
+                <a class="filter-option" th:each="category : ${categories}"
+                   th:classappend="${activeCategory.equalsIgnoreCase(category)} ? ' filter-selected' : ''"
+                   th:href="@{/people/{id}(id=${citizen.citizenId},category=${category})}"
+                   th:text="${category}">Category</a>
+            </div>
+        </div>
+
+        <div class="archive-results" th:if="${!#lists.isEmpty(documents)}">
+            <article class="archive-record" th:each="document : ${documents}">
+                <div class="record-symbol" aria-hidden="true">▤</div>
+                <div class="record-main">
+                    <div class="record-overline">
+                        <span class="record-category" th:text="${document.category}">Category</span>
+                        <span class="record-id">Document ID: <strong th:text="${document.id}">D101</strong></span>
+                    </div>
+                    <h3>
+                        <a th:href="@{/documents/{id}(id=${document.id})}"
+                           th:text="${document.title}">Document title</a>
+                    </h3>
+                    <p th:text="${#strings.abbreviate(document.text, 180)}">Document summary</p>
+                    <span class="record-importance">
+                        Record importance:
+                        <strong th:text="${document.importance}">3</strong> / 5
+                    </span>
+                </div>
+                <a class="record-action" th:href="@{/documents/{id}(id=${document.id})}">
+                    View record <span aria-hidden="true">→</span>
+                </a>
+            </article>
+        </div>
+
+        <div class="archive-empty" th:if="${#lists.isEmpty(documents)}">
+            <span aria-hidden="true">▤</span>
+            <h3 th:if="${activeCategory == ''}">No documents linked to this citizen yet</h3>
+            <h3 th:if="${activeCategory != ''}">No documents in this category</h3>
+            <p th:if="${activeCategory == ''}">An authorized administrator can link existing documents to this citizen.</p>
+            <p th:if="${activeCategory != ''}">Choose another category or view all linked records.</p>
+            <a th:if="${activeCategory != ''}"
+               th:href="@{/people/{id}(id=${citizen.citizenId})}">View all linked documents</a>
+        </div>
+    </section>
+</main>
+
+<footer class="archive-footer">
+    <div class="archive-shell footer-inner">
+        <span><strong>ARAM OFFICE · DOCUMENT SERVICES</strong><br>Access is limited to authorized office users.</span>
+        <a th:href="@{/}">Back to repository</a>
+    </div>
+</footer>
+</body>
+</html>

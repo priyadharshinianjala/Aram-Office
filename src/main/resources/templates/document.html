@@ -1,0 +1,199 @@
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Document Details | Aram Office</title>
+    <link rel="stylesheet" th:href="@{/styles.css}">
+    <style>
+        .details-page {
+            max-width: 850px;
+            margin: 45px auto;
+            padding: 25px;
+        }
+
+        .details-card {
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.08);
+        }
+
+        .details-label {
+            color: #64748b;
+            font-size: 13px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .details-value {
+            color: #172554;
+            font-size: 16px;
+            margin-bottom: 24px;
+        }
+
+        .document-content {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 10px;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 24px;
+            padding: 12px 20px;
+            background: #1d4ed8;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<header class="topbar">
+    <a class="brand" th:href="@{/}">
+        <span class="brand-mark">G</span>
+        <span>GOVERNMENT <small>DOCUMENT PORTAL</small></span>
+    </a>
+    <nav>
+        <a th:href="@{/}">Document search</a>
+        <a th:if="${!isOfficer}" th:href="@{/people/search}">Person search</a>
+        <a th:if="${isAdministrator}" th:href="@{/admin}">Officer administration</a>
+        <span class="signed-in-user" th:text="${username}">User</span>
+        <form class="logout-inline" th:action="@{/logout}" method="post">
+            <button type="submit">Sign out</button>
+        </form>
+    </nav>
+</header>
+
+<main class="details-page">
+    <p class="eyebrow">OFFICIAL RECORD</p>
+
+    <div class="details-card">
+        <div class="admin-alert admin-alert-success" th:if="${successMessage}"
+             th:text="${successMessage}" role="status"></div>
+        <div class="admin-alert admin-alert-error" th:if="${errorMessage}"
+             th:text="${errorMessage}" role="alert"></div>
+        <h1 th:text="${document.title}">Document Title</h1>
+        <p>View the complete official record, metadata, and searchable content.</p>
+        <hr>
+
+        <div class="details-label">Document ID</div>
+        <div class="details-value" th:text="${document.id}">D202</div>
+
+        <div class="details-label">Category</div>
+        <div class="details-value" th:text="${document.category}">Certificate</div>
+
+        <div th:if="${documentDepartment != null}">
+            <div class="details-label">Department</div>
+            <div class="details-value"
+                 th:text="${documentDepartment}">Department</div>
+        </div>
+
+        <div class="details-label">Importance Level</div>
+        <div class="details-value">
+            <span th:text="${document.importance}">5</span> / 5
+        </div>
+
+        <h3>Document Content</h3>
+        <div class="document-content"
+             th:text="${document.text}">
+            Document content appears here.
+        </div>
+
+        <section class="version-card">
+            <div class="version-header">
+                <h3>Original uploaded files</h3>
+                <span class="version-badge"
+                      th:text="${#lists.size(documentFiles)} + ' file(s)'">0 files</span>
+            </div>
+            <p th:if="${#lists.isEmpty(documentFiles)}">
+                This record has no original PDF or image file attached.
+            </p>
+            <div class="file-list">
+                <article class="file-card" th:each="file : ${documentFiles}">
+                    <div class="file-card-heading">
+                        <strong th:text="${file.originalFilename}">Document.pdf</strong>
+                        <span class="version-badge" th:text="${file.fileType}">application/pdf</span>
+                    </div>
+                    <p class="file-card-meta">
+                        <span th:text="${file.formattedSize()}">0.25 MB</span>
+                        · Uploaded by
+                        <strong th:text="${file.uploadedBy}">admin</strong>
+                        ·
+                        <time th:text="${#temporals.format(file.uploadedAt, 'yyyy-MM-dd HH:mm')}">
+                            Upload date
+                        </time>
+                        · Department:
+                        <strong th:text="${file.departmentName}">Department</strong>
+                    </p>
+                    <div class="file-actions">
+                        <a class="file-action-link"
+                           th:href="@{/documents/{id}/files/{fileId}/preview(id=${document.id},fileId=${file.fileId})}"
+                           target="_blank" rel="noopener">Open preview</a>
+                        <a class="file-action-link"
+                           th:href="@{/documents/{id}/files/{fileId}/download(id=${document.id},fileId=${file.fileId})}">
+                            Download original
+                        </a>
+                    </div>
+                    <img class="file-preview-image" th:if="${file.image}"
+                         th:src="@{/documents/{id}/files/{fileId}/preview(id=${document.id},fileId=${file.fileId})}"
+                         th:alt="${'Preview of ' + file.originalFilename}">
+                    <iframe class="file-preview-frame" th:if="${file.pdf}"
+                            th:src="@{/documents/{id}/files/{fileId}/preview(id=${document.id},fileId=${file.fileId})}"
+                            title="PDF document preview"></iframe>
+                </article>
+            </div>
+        </section>
+
+        <a class="back-link" th:href="@{/}">
+            ← Back to Home
+        </a>
+        <section class="version-card">
+            <div class="version-header">
+                <h3>Version history</h3>
+                <span class="version-badge"
+                      th:text="${#lists.size(versions)} + ' saved'">1 saved</span>
+            </div>
+            <p>Earlier saved content is preserved and can be compared with the current version.</p>
+            <p th:if="${#lists.isEmpty(versions)}">
+                No saved revisions are available for this document yet.
+            </p>
+            <details class="version-details"
+                     th:each="version : ${versions}"
+                     th:open="${version.current}">
+                <summary class="view-version-button">
+                    <span th:text="'Version ' + ${version.versionNumber}">Version 1</span>
+                    <span th:if="${version.current}" class="version-badge">CURRENT</span>
+                    <span th:text="${#temporals.format(version.createdAt, 'yyyy-MM-dd HH:mm')}">
+                        Saved date
+                    </span>
+                </summary>
+                <div class="version-content">
+                    <pre th:text="${version.text}">Saved document content</pre>
+                </div>
+            </details>
+        </section>
+        <section class="admin-panel" th:if="${isAdministrator}">
+            <h3>Save a new version</h3>
+            <p>Saving a revision preserves the existing content in version history.</p>
+            <form method="post"
+                  th:action="@{/documents/{id}/versions(id=${document.id})}"
+                  class="admin-form">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <label for="textContent">Updated document content</label>
+                <textarea id="textContent" name="textContent" maxlength="60000"
+                          rows="8" required th:text="${document.text}"></textarea>
+                <button type="submit">Save new version</button>
+            </form>
+        </section>
+    </div>
+</main>
+
+</body>
+</html>

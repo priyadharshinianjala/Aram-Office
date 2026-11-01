@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#123c32">
+    <title>Person Search | Aram Office</title>
+    <link rel="stylesheet" th:href="@{/styles.css}">
+</head>
+<body class="archive-page">
+<div class="utility-bar">
+    <div class="archive-shell utility-inner">
+        <span>ARAM OFFICE · SECURE RECORDS</span>
+        <span>Authorized staff access</span>
+    </div>
+</div>
+
+<header class="archive-header">
+    <div class="archive-shell masthead">
+        <a class="archive-brand" th:href="@{/}" aria-label="Aram Office home">
+            <span class="archive-emblem" aria-hidden="true">A</span>
+            <span><strong>ARAM OFFICE</strong><small>DOCUMENT SERVICES</small></span>
+        </a>
+        <div class="account-controls">
+            <span th:text="${username}">Signed-in user</span>
+            <form th:action="@{/logout}" method="post">
+                <button type="submit">Sign out</button>
+            </form>
+        </div>
+    </div>
+    <nav class="archive-nav" aria-label="Main navigation">
+        <div class="archive-shell nav-inner">
+            <a th:href="@{/}">Document repository</a>
+            <a class="nav-current" th:href="@{/people/search}">Person search</a>
+            <span class="nav-note">Citizen records are shown only to authorized users</span>
+        </div>
+    </nav>
+</header>
+
+<main>
+    <section class="people-intro">
+        <div class="archive-shell">
+            <p class="archive-kicker">AUTHORIZED PERSON LOOKUP</p>
+            <h1>Find documents by person.</h1>
+            <p>Search using a citizen ID or a full or partial name. Profiles are limited to records your account is permitted to access.</p>
+            <form class="people-search-form" method="get" th:action="@{/people/search}">
+                <label for="citizen-query">Citizen name or unique citizen ID</label>
+                <div class="people-search-controls">
+                    <input id="citizen-query" type="search" name="query"
+                           th:value="${query}" maxlength="100"
+                           placeholder="For example, Arun Kumar or C001" required>
+                    <button type="submit">Search citizens</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="archive-shell people-results">
+        <div class="people-result-heading">
+            <div>
+                <p class="archive-kicker">SEARCH RESULTS</p>
+                <h2 th:if="${query == ''}">Search for a citizen</h2>
+                <h2 th:if="${query != ''}">Matching profiles</h2>
+                <p th:if="${query != ''}" th:text="'Results for: ' + ${query}">Results for query</p>
+            </div>
+            <a class="people-back-link" th:href="@{/}">Document repository</a>
+        </div>
+
+        <div class="people-notice people-notice-error"
+             th:if="${!#strings.isEmpty(validationError)}"
+             th:text="${validationError}" role="alert"></div>
+        <div class="people-notice people-notice-error"
+             th:if="${unknownCitizen}" role="status">
+            No accessible citizen profile matched that ID. Check the ID or search by name.
+        </div>
+
+        <div class="people-card-list" th:if="${!#lists.isEmpty(citizens)}">
+            <article class="people-card" th:each="citizen : ${citizens}">
+                <div class="people-card-emblem" aria-hidden="true">P</div>
+                <div class="people-card-content">
+                    <p class="record-overline">CITIZEN PROFILE</p>
+                    <h3 th:text="${citizen.fullName}">Citizen Name</h3>
+                    <p class="citizen-id">Citizen ID: <strong th:text="${citizen.citizenId}">C001</strong></p>
+                </div>
+                <a class="record-action"
+                   th:href="@{/people/{citizenId}(citizenId=${citizen.citizenId})}">
+                    View linked documents <span aria-hidden="true">→</span>
+                </a>
+            </article>
+        </div>
+
+        <div class="archive-empty" th:if="${query != '' and #lists.isEmpty(citizens) and #strings.isEmpty(validationError) and !unknownCitizen}">
+            <span aria-hidden="true">⌕</span>
+            <h3>No accessible citizen profiles found</h3>
+            <p>Check the spelling or citizen ID. If the profile should be available to you, ask an administrator to grant access.</p>
+        </div>
+        <div class="archive-empty" th:if="${query == '' and !unknownCitizen}">
+            <span aria-hidden="true">⌕</span>
+            <h3>Search by name or citizen ID</h3>
+            <p>Enter a full or partial name, or the citizen's unique ID.</p>
+        </div>
+    </section>
+</main>
+
+<footer class="archive-footer">
+    <div class="archive-shell footer-inner">
+        <span><strong>ARAM OFFICE · DOCUMENT SERVICES</strong><br>Access is limited to authorized office users.</span>
+        <a th:href="@{/}">Back to repository</a>
+    </div>
+</footer>
+</body>
+</html>
