@@ -47,7 +47,7 @@ CREATE TABLE document_files (
     document_id VARCHAR(10) NOT NULL,
     stored_filename VARCHAR(36) NOT NULL UNIQUE,
     original_filename VARCHAR(255) NOT NULL,
-    file_type VARCHAR(32) NOT NULL,
+    file_type VARCHAR(100) NOT NULL,
     file_size BIGINT NOT NULL,
     uploaded_by VARCHAR(100) NOT NULL,
     uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

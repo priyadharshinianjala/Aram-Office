@@ -159,6 +159,32 @@ class SecurityFlowWebTest {
     }
 
     @Test
+    void personSearchResultsIncludeLinkedDocuments() throws Exception {
+        Citizen citizen = new Citizen("C001", "Arun Kumar");
+        Document linkedWordDocument = new Document(
+                "D914", "Person Word Record", "Certificate", 3,
+                "Word record description");
+        linkedWordDocument.setCitizen(citizen);
+        when(citizenSearchService.findAuthorized(eq("C001"),
+                org.mockito.ArgumentMatchers.any()))
+                .thenReturn(citizen);
+        when(citizenSearchService.categoriesFor(citizen))
+                .thenReturn(List.of("Certificate"));
+        when(citizenSearchService.documentsFor(citizen, ""))
+                .thenReturn(List.of(linkedWordDocument));
+
+        mockMvc.perform(get("/people/C001")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "Arun Kumar")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "Person Word Record")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "/documents/D914")));
+    }
+
+    @Test
     void disabledOfficerCannotOpenDocumentsInAnExistingSession() throws Exception {
         Document privateDocument = new Document(
                 "D202", "Health Record", "Health", 4, "Private record");
@@ -247,16 +273,24 @@ class SecurityFlowWebTest {
     void administratorSeesFileUploadInTheAddDocumentForm() throws Exception {
         when(officerAccountService.departments())
                 .thenReturn(List.of(new Department("REV", "Revenue")));
+        when(citizenSearchService.citizensForDocumentLinking())
+                .thenReturn(List.of(new Citizen("C001", "Arun Kumar")));
 
         mockMvc.perform(get("/documents/add")
                         .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "Original PDF or image (optional)")))
+                        "Original PDF, Word document, or image (optional)")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        ".docx")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "Document department")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "name=\"departmentId\" required")))
+                        "name=\"departmentName\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "Person profile (optional)")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "Arun Kumar")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "10 MB")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
@@ -298,7 +332,8 @@ class SecurityFlowWebTest {
                 eq("Certificate"),
                 eq(3),
                 eq("Income verification"),
-                eq("REV"),
+                eq("Revenue"),
+                eq(""),
                 any(org.springframework.web.multipart.MultipartFile.class),
                 eq("admin")))
                 .thenReturn(saved);
@@ -313,7 +348,7 @@ class SecurityFlowWebTest {
                         .param("category", "Certificate")
                         .param("importance", "3")
                         .param("text", "Income verification")
-                        .param("departmentId", "REV")
+                        .param("departmentName", "Revenue")
                         .with(user("admin").roles("ADMIN"))
                         .with(csrf()))
                 .andExpect(status().is3xxRedirection())
@@ -324,7 +359,7 @@ class SecurityFlowWebTest {
     void administratorCanSaveTextDocumentWithASelectedDepartment()
             throws Exception {
         when(documentCreationService.create(
-                any(Document.class), eq("REV"), eq("admin")))
+                any(Document.class), eq("Revenue"), eq(""), eq("admin")))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         mockMvc.perform(post("/documents/add")
@@ -333,14 +368,38 @@ class SecurityFlowWebTest {
                         .param("category", "circular")
                         .param("importance", "3")
                         .param("text", "Document content")
-                        .param("departmentId", "REV")
+                        .param("departmentName", "Revenue")
                         .with(user("admin").roles("ADMIN"))
                         .with(csrf()))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/documents/D202"));
 
         verify(documentCreationService).create(
-                any(Document.class), eq("REV"), eq("admin"));
+                any(Document.class), eq("Revenue"), eq(""), eq("admin"));
+    }
+
+    @Test
+    void administratorCanLinkTextDocumentToSelectedPerson()
+            throws Exception {
+        when(documentCreationService.create(
+                any(Document.class), eq("Revenue"), eq("C001"), eq("admin")))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        mockMvc.perform(post("/documents/add")
+                        .param("id", "D203")
+                        .param("title", "Person Certificate")
+                        .param("category", "certificate")
+                        .param("importance", "3")
+                        .param("text", "Document content")
+                        .param("departmentName", "Revenue")
+                        .param("citizenId", "C001")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/documents/D203"));
+
+        verify(documentCreationService).create(
+                any(Document.class), eq("Revenue"), eq("C001"), eq("admin"));
     }
 
     @Test
@@ -397,6 +456,44 @@ class SecurityFlowWebTest {
         verify(auditLogService).record(
                 "revenue-officer", "DOCUMENT_FILE_DOWNLOADED",
                 "D101 (file 7)");
+    }
+
+    @Test
+    void wordFilesAreDownloadableButNotServedAsInlinePreviews()
+            throws Exception {
+        Document document = new Document(
+                "D101", "Revenue Circular", "Circular", 4, "Description");
+        byte[] docxBytes = "original word bytes".getBytes(
+                java.nio.charset.StandardCharsets.UTF_8);
+        Path storedFile = temporaryStorage.resolve("original.docx");
+        Files.write(storedFile, docxBytes);
+        DocumentFile file = new DocumentFile(
+                8, "D101", "7df8b935-9c2a-42d2-8d46-56350b6eb290",
+                "original.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                docxBytes.length,
+                "admin", LocalDateTime.of(2026, 10, 30, 12, 0),
+                "REV", "Revenue");
+        when(documentService.getDocument("D101")).thenReturn(document);
+        when(officerDocumentService.isEnabledOfficer("revenue-officer"))
+                .thenReturn(true);
+        when(documentFileService.fileForDocument("D101", 8)).thenReturn(file);
+        when(documentFileService.storedPath(file)).thenReturn(storedFile);
+
+        mockMvc.perform(get("/documents/D101/files/8/preview")
+                        .with(user("revenue-officer").roles("OFFICER")))
+                .andExpect(status().isUnsupportedMediaType());
+
+        mockMvc.perform(get("/documents/D101/files/8/download")
+                        .with(user("revenue-officer").roles("OFFICER")))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+                .andExpect(content().bytes(docxBytes))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string(
+                                "Content-Disposition",
+                                org.hamcrest.Matchers.containsString("attachment")));
     }
 
     @Test

@@ -164,7 +164,7 @@
         </div>
 
         <p class="description">
-            Add searchable document details and, optionally, attach the original PDF or image.
+            Add searchable document details and, optionally, attach the original PDF, Word document, or image.
             Documents are available to all enabled government officers after they sign in.
         </p>
 
@@ -250,26 +250,45 @@
                       placeholder="Enter the document content, or a short description if attaching a file"
                       th:text="${text}"></textarea>
 
-            <label for="file">Original PDF or image (optional)</label>
+            <label for="file">Original PDF, Word document, or image (optional)</label>
             <input id="file"
                    name="file"
                    type="file"
-                   accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp">
+                   accept=".pdf,.docx,.jpg,.jpeg,.png,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/webp">
             <p class="description">
-                Supported formats: PDF, JPG/JPEG, PNG and WEBP. Maximum file size: 10 MB.
+                Supported formats: PDF, DOCX, JPG/JPEG, PNG and WEBP. Maximum file size: 10 MB.
+                Word documents are available for download; PDF and images can be previewed.
                 Files are checked on the server and stored outside the public web folder.
             </p>
 
-            <label for="departmentId">Document department</label>
-            <select id="departmentId" name="departmentId" required>
-                <option value="" disabled th:selected="${departmentId == null or departmentId == ''}">
-                    Select a department
-                </option>
+            <label for="departmentName">Document department</label>
+            <input id="departmentName"
+                   name="departmentName"
+                   type="text"
+                   list="department-suggestions"
+                   maxlength="150"
+                   th:value="${departmentName}"
+                   placeholder="Type a department name"
+                   required>
+            <datalist id="department-suggestions">
                 <option th:each="department : ${departments}"
-                        th:value="${department.id}"
-                        th:text="${department.name}"
-                        th:selected="${department.id == departmentId}">Department</option>
+                        th:value="${department.name}">Department</option>
+            </datalist>
+
+            <label for="citizenId">Person profile (optional)</label>
+            <select id="citizenId" name="citizenId">
+                <option value="">General document (not linked to a person)</option>
+                <option th:each="citizen : ${citizens}"
+                        th:value="${citizen.citizenId}"
+                        th:text="${citizen.fullName + ' · ' + citizen.citizenId}"
+                        th:selected="${citizen.citizenId == citizenId}">
+                    Person profile
+                </option>
             </select>
+            <p class="description">
+                Choose a person to make this document appear in that person's authorized Person Search results.
+                Leave it unselected for a general office document.
+            </p>
 
             <div class="buttons">
                 <button type="submit">Save Document</button>

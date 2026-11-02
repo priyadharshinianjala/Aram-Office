@@ -87,9 +87,12 @@
                         Record importance:
                         <strong th:text="${document.importance}">3</strong> / 5
                     </span>
+                    <p class="record-file-note">
+                        Open the record to download its original PDF or Word document.
+                    </p>
                 </div>
                 <a class="record-action" th:href="@{/documents/{id}(id=${document.id})}">
-                    View record <span aria-hidden="true">→</span>
+                    Open record &amp; downloads <span aria-hidden="true">→</span>
                 </a>
             </article>
         </div>

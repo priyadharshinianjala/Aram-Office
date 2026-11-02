@@ -38,6 +38,7 @@ public class DocumentController {
     private final OfficerAccountService officerAccountService;
     private final DocumentDepartmentService documentDepartmentService;
     private final DocumentCreationService documentCreationService;
+    private final CitizenSearchService citizenSearchService;
 
     public DocumentController(
             DocumentService documentService,
@@ -48,7 +49,8 @@ public class DocumentController {
             DocumentFileService documentFileService,
             OfficerAccountService officerAccountService,
             DocumentDepartmentService documentDepartmentService,
-            DocumentCreationService documentCreationService) {
+            DocumentCreationService documentCreationService,
+            CitizenSearchService citizenSearchService) {
         this.documentService = documentService;
         this.citizenAccessService = citizenAccessService;
         this.officerDocumentService = officerDocumentService;
@@ -58,6 +60,7 @@ public class DocumentController {
         this.officerAccountService = officerAccountService;
         this.documentDepartmentService = documentDepartmentService;
         this.documentCreationService = documentCreationService;
+        this.citizenSearchService = citizenSearchService;
     }
 
     @GetMapping("/")
@@ -98,6 +101,7 @@ public class DocumentController {
         model.addAttribute(
                 "documentDepartment",
                 documentDepartmentService.departmentName(id));
+        model.addAttribute("linkedCitizen", document.getCitizen());
         model.addAttribute(
                 "versions", documentVersionService.versions(document.getId()));
         model.addAttribute("username", authentication.getName());
@@ -139,6 +143,9 @@ public class DocumentController {
         DocumentFile file = documentFileService.fileForDocument(documentId, fileId);
         if (file == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        if (!download && !file.isPdf() && !file.isImage()) {
+            throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
         }
         Path storedPath = documentFileService.storedPath(file);
         if (!Files.isRegularFile(storedPath, LinkOption.NOFOLLOW_LINKS)) {
@@ -281,8 +288,7 @@ public class DocumentController {
 
     @GetMapping("/documents/add")
     public String showAddForm(Model model, Authentication authentication) {
-        model.addAttribute("username", authentication.getName());
-        model.addAttribute("departments", officerAccountService.departments());
+        populateDocumentFormModel(model, authentication);
         return "add-document";
     }
 
@@ -293,7 +299,8 @@ public class DocumentController {
             @RequestParam String category,
             @RequestParam int importance,
             @RequestParam(defaultValue = "") String text,
-            @RequestParam(defaultValue = "") String departmentId,
+            @RequestParam(defaultValue = "") String departmentName,
+            @RequestParam(defaultValue = "") String citizenId,
             @RequestParam(value = "file", required = false)
                     org.springframework.web.multipart.MultipartFile file,
             Model model,
@@ -302,7 +309,8 @@ public class DocumentController {
             if (file != null && !file.isEmpty()) {
                 documentFileService.upload(
                         id, title, category, importance, text,
-                        departmentId, file, authentication.getName());
+                        departmentName, citizenId, file,
+                        authentication.getName());
                 return "redirect:/documents/" + id;
             } else {
                 if (text.isBlank()) {
@@ -312,7 +320,8 @@ public class DocumentController {
                 Document document = new Document(
                         id, title, category, importance, text);
                 documentCreationService.create(
-                        document, departmentId, authentication.getName());
+                        document, departmentName, citizenId,
+                        authentication.getName());
                 auditLogService.record(
                         authentication.getName(), "DOCUMENT_CREATED", id);
                 return "redirect:/documents/" + id;
@@ -324,10 +333,9 @@ public class DocumentController {
             model.addAttribute("category", category);
             model.addAttribute("importance", importance);
             model.addAttribute("text", text);
-            model.addAttribute("departmentId", departmentId);
-            model.addAttribute("username", authentication.getName());
-            model.addAttribute(
-                    "departments", officerAccountService.departments());
+            model.addAttribute("departmentName", departmentName);
+            model.addAttribute("citizenId", citizenId);
+            populateDocumentFormModel(model, authentication);
             return "add-document";
         } catch (DocumentFileStorageException exception) {
             model.addAttribute(
@@ -338,10 +346,9 @@ public class DocumentController {
             model.addAttribute("category", category);
             model.addAttribute("importance", importance);
             model.addAttribute("text", text);
-            model.addAttribute("departmentId", departmentId);
-            model.addAttribute("username", authentication.getName());
-            model.addAttribute(
-                    "departments", officerAccountService.departments());
+            model.addAttribute("departmentName", departmentName);
+            model.addAttribute("citizenId", citizenId);
+            populateDocumentFormModel(model, authentication);
             return "add-document";
         }
     }
@@ -350,8 +357,16 @@ public class DocumentController {
     public String uploadTooLarge(Model model, Authentication authentication) {
         model.addAttribute(
                 "errorMessage", "The selected file exceeds the 10 MB limit.");
+        populateDocumentFormModel(model, authentication);
+        return "add-document";
+    }
+
+    private void populateDocumentFormModel(
+            Model model,
+            Authentication authentication) {
         model.addAttribute("username", authentication.getName());
         model.addAttribute("departments", officerAccountService.departments());
-        return "add-document";
+        model.addAttribute(
+                "citizens", citizenSearchService.citizensForDocumentLinking());
     }
 }

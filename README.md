@@ -40,7 +40,15 @@ The application configuration targets MariaDB database `aram_office` on port `33
 
    The officer migration adds departments, officer metadata, and audit events. The file migration adds only file metadata and foreign keys; it does not change existing documents or upload any files. Enabled government officers can access all documents after signing in.
 
-8. After the file migration has completed, apply [document department metadata migration](../sql/document_departments_migration.sql). It creates the document-to-department metadata table and backfills department metadata from existing uploaded files without changing or deleting documents:
+8. For an existing installation, after the file migration has completed, widen the file MIME type column for DOCX uploads by applying [document Word file type migration](../sql/document_word_file_types_migration.sql):
+
+   ```powershell
+   & "C:\xampp\mysql\bin\mysql.exe" --host=127.0.0.1 --port=3307 --user=root -p aram_office --execute="source sql/document_word_file_types_migration.sql"
+   ```
+
+   New installations using the updated [document file metadata migration](../sql/document_files_migration.sql) already create this column at the required size.
+
+9. After the file migration has completed, apply [document department metadata migration](../sql/document_departments_migration.sql). It creates the document-to-department metadata table and backfills department metadata from existing uploaded files without changing or deleting documents:
 
    ```powershell
    & "C:\xampp\mysql\bin\mysql.exe" --host=127.0.0.1 --port=3307 --user=root -p aram_office --execute="source sql/document_departments_migration.sql"
@@ -50,13 +58,17 @@ The application configuration targets MariaDB database `aram_office` on port `33
 
 The `aram_app` database user needs `SELECT`/`INSERT` on `document_files` and `document_departments`, `SELECT`/`INSERT`/`UPDATE` on `documents` and `document_versions`, and the officer/audit privileges from the existing setup. Keep existing grants and do not give the app user schema-management permissions. If an older installation already has a `document_assignments` table, the updated application ignores it and does not delete its records.
 
-## Original PDF and image documents
+## Original PDF, Word, and image documents
 
 Administrators can create officer accounts without department details. For existing databases, run the optional officer department migration above before using the updated officer account form. Existing officer department values are preserved. Administrators can add text documents or upload original files from **Add a document** (`http://localhost:8081/documents/add`). The form requires a department for every new document, whether it contains text only or an uploaded file. The selected department is stored as document metadata and shown on the document details page; it does not limit officer access. Each upload creates a new unique document record and never overwrites an existing `document_id`.
 
-Accepted originals are PDF, JPG/JPEG, PNG, and WEBP, up to 10 MB. The application validates extension and file signature; it does not trust the browser MIME type. Generated UUID storage names are kept in `document_files`; uploaded bytes are stored outside static/public resources in `${ARAM_DOCUMENT_STORAGE_DIR}` or, by default, `${user.home}/.aram-office/documents`. On POSIX systems the application restricts the storage directory and files to the application user. On Windows, grant access to the configured NTFS storage folder only to the application service account and administrators. Back up this private folder alongside the database; a database backup alone does not include original uploaded files.
+The department field accepts a name typed by the administrator. Existing department names appear as suggestions; a new name is added to the `departments` table automatically and reused for later documents. The optional **Person profile** field links the document to an existing citizen profile. Select no person for a general office document. Linked records appear in the selected person's authorized Person Search results. This uses the existing `documents.citizen_id` relationship and does not create a citizen profile from the document form; create the person profile first through the existing database/admin setup.
 
-Document details show the original name, type, size, uploader, upload date, department, and preview/download links. PDF and image preview/download URLs are authenticated routes that re-check that the requester is an enabled government officer (or an administrator) on every request. Response headers prevent MIME sniffing and caching. The app does not expose the private filesystem path.
+For MariaDB, the existing [person-search migration](../sql/person_search_migration.sql) must be applied so `citizens`, `citizen_user_access`, and nullable `documents.citizen_id` are present. The application database user needs `SELECT` on `citizens` and `SELECT`/`INSERT` on `departments`, in addition to the grants below, to populate the optional person selector and create newly typed department names. No new database migration is needed for these form changes.
+
+Accepted originals are PDF, DOCX (Microsoft Word Open XML), JPG/JPEG, PNG, and WEBP, up to 10 MB. The application validates extensions and file signatures/content structure; it does not trust the browser MIME type. Legacy `.doc` files are not accepted. DOCX files are protected downloads; PDF and images also support protected previews. The `document_files.file_type` column must allow 100 characters for the DOCX MIME type. New installations get this size from [document file metadata migration](../sql/document_files_migration.sql); existing installations must apply [document Word file type migration](../sql/document_word_file_types_migration.sql) after the file metadata migration. Generated UUID storage names are kept in `document_files`; uploaded bytes are stored outside static/public resources in `${ARAM_DOCUMENT_STORAGE_DIR}` or, by default, `${user.home}/.aram-office/documents`. On POSIX systems the application restricts the storage directory and files to the application user. On Windows, grant access to the configured NTFS storage folder only to the application service account and administrators. Back up this private folder alongside the database; a database backup alone does not include original uploaded files.
+
+Document details show the original name, type, size, uploader, upload date, department, and protected download link. PDF and image preview/download URLs are authenticated routes that re-check that the requester is an enabled government officer (or an administrator) on every request. Word files are only downloadable. Response headers prevent MIME sniffing and caching. The app does not expose the private filesystem path.
 
 ## Create the initial administrator
 
@@ -89,7 +101,15 @@ $env:ARAM_ADMIN_PASSWORD = "replace-with-a-12-to-72-byte-password"
 java -jar "webapp\target\egovernance-demo-web-1.0.0.jar" --spring.profiles.active=demo --server.port=8081
 ```
 
-The demo profile provides synthetic Revenue, Health, and Education departments and documents. It uses an in-memory H2 database and discards demo accounts and audit records when stopped. Original demo files are stored in the separate private demo storage directory; remove that directory when clearing presentation data. The demo does not connect to or alter MariaDB.
+The demo profile provides synthetic Revenue, Health, and Education departments and documents, plus searchable fictional profiles for Nandhini, Meenakshi, Kavitha, Divya, and Ananya. Add documents for these people through **Add a document** and select their person profile; use synthetic details only. It uses an in-memory H2 database and discards uploaded documents, demo accounts, and audit records when stopped. Original demo files are stored in the separate private demo storage directory; remove that directory when clearing presentation data. The demo does not connect to or alter MariaDB.
+
+## Deploy a public demo on Render
+
+The repository includes a Render Blueprint and Dockerfile for deploying this Spring Boot app with PostgreSQL. From the Render Dashboard, choose **New → Blueprint**, connect `priyadharshinianjala/Aram-Office`, and deploy the `main` branch. Render reads `render.yaml`, creates the web service and PostgreSQL database, and builds the application from this directory. The Blueprint generates an initial administrator password; copy it from the service's environment settings and store it securely. Sign in as `office-admin` with that generated password. Later pushes to `main` trigger a redeploy.
+
+This Blueprint intentionally uses Render's free plans for a presentation demo. Free web services can sleep when idle, free PostgreSQL databases expire after 30 days, and the web service filesystem is ephemeral. Uploaded original files under `/tmp/aram-office/documents` can be lost whenever the service restarts or redeploys; upload only synthetic samples and re-upload them when needed. Do not use this free setup for real citizen records or production. A persistent paid deployment requires a paid PostgreSQL plan and persistent storage for uploaded files.
+
+The Render profile uses Flyway migrations in `src/main/resources/db/migration`; these create the PostgreSQL schema and seed synthetic searchable profiles and PDF records. The ten synthetic person-detail and service-profile PDFs are bundled in `src/main/resources/demo-pdfs` and restored to the private upload directory at startup. It does not connect to the local MariaDB database or use the H2 demo profile.
 
 ## Existing citizen access
 

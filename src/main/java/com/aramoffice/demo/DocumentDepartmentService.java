@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class DocumentDepartmentService {
@@ -22,23 +23,58 @@ public class DocumentDepartmentService {
     @Transactional
     public void setDepartment(
             String documentId,
-            String departmentId,
+            String departmentName,
             String actor) {
-        String normalizedDepartment = departmentId == null
-                ? "" : departmentId.trim();
-        if (normalizedDepartment.isBlank()
-                || !exists(normalizedDepartment)) {
-            throw new IllegalArgumentException("Select an existing department.");
-        }
+        String departmentId = resolveDepartmentId(departmentName);
         jdbcTemplate.update(
                 "INSERT INTO document_departments "
                         + "(document_id, department_id) VALUES (?, ?)",
                 documentId,
-                normalizedDepartment);
+                departmentId);
         auditLogService.record(
                 actor,
                 "DOCUMENT_DEPARTMENT_SET",
-                documentId + " -> " + normalizedDepartment);
+                documentId + " -> " + departmentId);
+    }
+
+    @Transactional
+    public String resolveDepartmentId(String departmentName) {
+        String normalizedName = departmentName == null
+                ? "" : departmentName.trim();
+        if (normalizedName.isBlank() || normalizedName.length() > 150
+                || normalizedName.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException(
+                    "Enter a department name of at most 150 characters.");
+        }
+
+        List<String> existing = jdbcTemplate.query(
+                "SELECT department_id FROM departments "
+                        + "WHERE LOWER(department_name) = LOWER(?) "
+                        + "ORDER BY department_id",
+                (result, row) -> result.getString("department_id"),
+                normalizedName);
+        if (!existing.isEmpty()) {
+            return existing.get(0);
+        }
+
+        String departmentId = UUID.randomUUID().toString();
+        jdbcTemplate.update(
+                "INSERT INTO departments (department_id, department_name) "
+                        + "VALUES (?, ?)",
+                departmentId,
+                normalizedName);
+        return departmentId;
+    }
+
+    public String departmentIdForDocument(String documentId) {
+        List<String> departmentIds = jdbcTemplate.query(
+                "SELECT department_id FROM document_departments "
+                        + "WHERE document_id = ?",
+                (result, row) -> result.getString("department_id"),
+                documentId);
+        return departmentIds.stream().findFirst().orElseThrow(() ->
+                new IllegalStateException(
+                        "The document department was not saved."));
     }
 
     public String departmentName(String documentId) {
@@ -61,11 +97,4 @@ public class DocumentDepartmentService {
         return fileDepartments.stream().findFirst().orElse(null);
     }
 
-    private boolean exists(String departmentId) {
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM departments WHERE department_id = ?",
-                Integer.class,
-                departmentId);
-        return count != null && count > 0;
-    }
 }

@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: aram-office
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /login
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: render
+      - key: ARAM_DB_HOST
+        fromDatabase:
+          name: aram-office-db
+          property: host
+      - key: ARAM_DB_PORT
+        fromDatabase:
+          name: aram-office-db
+          property: port
+      - key: ARAM_DB_NAME
+        fromDatabase:
+          name: aram-office-db
+          property: database
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: aram-office-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: aram-office-db
+          property: password
+      - key: ARAM_ADMIN_USERNAME
+        value: office-admin
+      - key: ARAM_ADMIN_PASSWORD
+        generateValue: true
+      - key: ARAM_DOCUMENT_STORAGE_DIR
+        value: /tmp/aram-office/documents
+
+databases:
+  - name: aram-office-db
+    databaseName: aram_office
+    user: aram_app
+    plan: free
+    region: oregon
+    postgresVersion: "16"

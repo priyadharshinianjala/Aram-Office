@@ -18,6 +18,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -85,6 +87,9 @@ class OfficerAccessIntegrationTest {
 
     @Autowired
     private DocumentCreationService documentCreationService;
+
+    @Autowired
+    private CitizenSearchService citizenSearchService;
 
     @Test
     void everyEnabledOfficerCanSeeTheCompleteDocumentRepository() {
@@ -208,11 +213,115 @@ class OfficerAccessIntegrationTest {
                 new Document(
                         "D908", "Department metadata test", "Test", 2,
                         "Document content"),
-                "HLT",
+                "Health",
+                "",
                 "admin");
 
         assertThat(documentDepartmentService.departmentName(created.getId()))
                 .isEqualTo("Health");
+    }
+
+    @Test
+    void typedDepartmentIsCreatedAndExistingDepartmentNameIsReused() {
+        Document first = documentCreationService.create(
+                new Document(
+                        "D910", "Typed department first", "Test", 2, "Text"),
+                "Legal Affairs",
+                "",
+                "admin");
+        Document second = documentCreationService.create(
+                new Document(
+                        "D911", "Typed department second", "Test", 2, "Text"),
+                " legal affairs ",
+                "",
+                "admin");
+
+        assertThat(documentDepartmentService.departmentName(first.getId()))
+                .isEqualTo("Legal Affairs");
+        assertThat(documentDepartmentService.departmentName(second.getId()))
+                .isEqualTo("Legal Affairs");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM departments "
+                        + "WHERE LOWER(department_name) = LOWER(?)",
+                Integer.class,
+                "legal affairs"))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void textDocumentCanBeLinkedToAnExistingCitizenForPersonSearch() {
+        jdbcTemplate.update(
+                "INSERT INTO citizens (citizen_id, full_name) VALUES (?, ?)",
+                "CIT-LINK-TEST",
+                "Person Link Test");
+
+        Document created = documentCreationService.create(
+                new Document(
+                        "D912", "Person-linked record", "Test", 2, "Text"),
+                "Health",
+                "CIT-LINK-TEST",
+                "admin");
+
+        assertThat(documentService.getDocument(created.getId()).getCitizen()
+                .getCitizenId()).isEqualTo("CIT-LINK-TEST");
+    }
+
+    @Test
+    void uploadedDocumentCanBeLinkedToAPersonAndTypedDepartment()
+            throws IOException {
+        jdbcTemplate.update(
+                "INSERT INTO citizens (citizen_id, full_name) VALUES (?, ?)",
+                "CIT-UPLOAD-TEST",
+                "Upload Person Test");
+        byte[] pdfBytes = "%PDF-1.7\nPerson-linked upload"
+                .getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+
+        documentFileService.upload(
+                "D913", "Person-linked PDF", "Certificate", 2,
+                "Upload description", "Community Services",
+                "CIT-UPLOAD-TEST",
+                new MockMultipartFile(
+                        "file", "person-record.pdf", "application/pdf",
+                        pdfBytes),
+                "admin");
+
+        Document created = documentService.getDocument("D913");
+        assertThat(created.getCitizen().getCitizenId())
+                .isEqualTo("CIT-UPLOAD-TEST");
+        assertThat(documentDepartmentService.departmentName("D913"))
+                .isEqualTo("Community Services");
+    }
+
+    @Test
+    void docxUploadIsLinkedToSelectedPersonAndCanBeDownloadedAsOriginal()
+            throws IOException {
+        jdbcTemplate.update(
+                "INSERT INTO citizens (citizen_id, full_name) VALUES (?, ?)",
+                "CIT-DOCX-TEST",
+                "Word Upload Person");
+        byte[] docxBytes = wordDocumentBytes();
+
+        DocumentFile saved = documentFileService.upload(
+                "D914", "Person Word Record", "Certificate", 3,
+                "Word record description", "Community Services",
+                "CIT-DOCX-TEST",
+                new MockMultipartFile(
+                        "file", "person-record.docx",
+                        "application/octet-stream", docxBytes),
+                "admin");
+
+        assertThat(saved.fileType()).isEqualTo(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        assertThat(Files.readAllBytes(documentFileService.storedPath(saved)))
+                .containsExactly(docxBytes);
+        assertThat(documentService.getDocument("D914").getCitizen()
+                .getCitizenId()).isEqualTo("CIT-DOCX-TEST");
+        assertThat(citizenSearchService.documentsFor(
+                        new Citizen("CIT-DOCX-TEST", "Word Upload Person"), ""))
+                .extracting(Document::getId)
+                .contains("D914");
+        assertThat(documentDepartmentService.departmentName("D914"))
+                .isEqualTo("Community Services");
     }
 
     @Test
@@ -221,7 +330,8 @@ class OfficerAccessIntegrationTest {
         Document created = documentCreationService.create(
                 new Document(
                         "D909", "Long content test", "Test", 2, content),
-                "HLT",
+                "Health",
+                "",
                 "admin");
 
         assertThat(documentService.getDocument(created.getId()).getText())
@@ -246,7 +356,8 @@ class OfficerAccessIntegrationTest {
 
         DocumentFile saved = documentFileService.upload(
                 "D901", "Income Certificate", "Certificate", 4,
-                "Income certificate record", "EDU", upload, "admin");
+                "Income certificate record", "Education", "",
+                upload, "admin");
 
         assertThat(documentDepartmentService.departmentName("D901"))
                 .isEqualTo("Education");
@@ -272,7 +383,7 @@ class OfficerAccessIntegrationTest {
 
         DocumentFile saved = documentFileService.upload(
                 "D902", "Medical Record", "Health", 3,
-                "Scanned health document", "HLT",
+                "Scanned health document", "Health", "",
                 upload, "admin");
 
         assertThat(documentDepartmentService.departmentName("D902"))
@@ -295,12 +406,12 @@ class OfficerAccessIntegrationTest {
 
         DocumentFile jpeg = documentFileService.upload(
                 "D906", "JPEG scan", "Health", 2, "",
-                "HLT", new MockMultipartFile(
+                "Health", "", new MockMultipartFile(
                         "file", "scan.jpeg", "application/octet-stream",
                         jpegBytes), "admin");
         DocumentFile webp = documentFileService.upload(
                 "D907", "WEBP scan", "Health", 2, "",
-                "HLT", new MockMultipartFile(
+                "Health", "", new MockMultipartFile(
                         "file", "scan.webp", "application/octet-stream",
                         webpBytes), "admin");
 
@@ -319,20 +430,58 @@ class OfficerAccessIntegrationTest {
         MockMultipartFile oversized = new MockMultipartFile(
                 "file", "large.pdf", "application/pdf",
                 new byte[(int) DocumentFileService.MAX_FILE_SIZE + 1]);
+        MockMultipartFile malformedWord = new MockMultipartFile(
+                "file", "not-a-word-file.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                new byte[]{'P', 'K', 3, 4, 0, 0, 0, 0});
+        MockMultipartFile legacyWord = new MockMultipartFile(
+                "file", "legacy.doc", "application/msword",
+                new byte[]{
+                        (byte) 0xd0, (byte) 0xcf, 0x11, (byte) 0xe0,
+                        (byte) 0xa1, (byte) 0xb1, 0x1a, (byte) 0xe1});
 
         assertThatThrownBy(() -> documentFileService.upload(
-                "D903", "Bad file", "Test", 1, "", "EDU",
+                "D903", "Bad file", "Test", 1, "", "Education", "",
                 executable, "admin"))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> documentFileService.upload(
-                "D904", "Mismatched file", "Test", 1, "", "EDU",
+                "D904", "Mismatched file", "Test", 1, "", "Education", "",
                 mismatched, "admin"))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> documentFileService.upload(
-                "D905", "Oversized file", "Test", 1, "", "EDU",
+                "D905", "Oversized file", "Test", 1, "", "Education", "",
                 oversized, "admin"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("10 MB");
+        assertThatThrownBy(() -> documentFileService.upload(
+                "D915", "Malformed Word file", "Test", 1, "",
+                "Education", "", malformedWord, "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("signature");
+        assertThatThrownBy(() -> documentFileService.upload(
+                "D916", "Legacy Word file", "Test", 1, "",
+                "Education", "", legacyWord, "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("signature");
+    }
+
+    private byte[] wordDocumentBytes() throws IOException {
+        java.io.ByteArrayOutputStream bytes =
+                new java.io.ByteArrayOutputStream();
+        try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
+            zip.putNextEntry(new ZipEntry("[Content_Types].xml"));
+            zip.write(("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                    + "<Types><Override PartName=\"/word/document.xml\" "
+                    + "ContentType=\"application/vnd.openxmlformats-officedocument."
+                    + "wordprocessingml.document.main+xml\"/></Types>")
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("word/document.xml"));
+            zip.write("<document/>"
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+        return bytes.toByteArray();
     }
 
     private List<String> documentIds(List<Document> documents) {

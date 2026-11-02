@@ -11,16 +11,23 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.regex.Pattern;
 
 @Service
@@ -33,6 +40,7 @@ public class DocumentFileService {
             Pattern.compile("[A-Za-z0-9._-]{1,10}");
     private final JdbcTemplate jdbcTemplate;
     private final DocumentService documentService;
+    private final DocumentCreationService documentCreationService;
     private final DocumentDepartmentService documentDepartmentService;
     private final AuditLogService auditLogService;
     private final Path storageRoot;
@@ -40,11 +48,13 @@ public class DocumentFileService {
     public DocumentFileService(
             JdbcTemplate jdbcTemplate,
             DocumentService documentService,
+            DocumentCreationService documentCreationService,
             DocumentDepartmentService documentDepartmentService,
             AuditLogService auditLogService,
             @Value("${app.documents.storage-dir}") String storageDirectory) {
         this.jdbcTemplate = jdbcTemplate;
         this.documentService = documentService;
+        this.documentCreationService = documentCreationService;
         this.documentDepartmentService = documentDepartmentService;
         this.auditLogService = auditLogService;
         this.storageRoot = Path.of(storageDirectory).toAbsolutePath().normalize();
@@ -90,6 +100,56 @@ public class DocumentFileService {
         return storedPath;
     }
 
+    public void restoreBundledPdf(
+            String documentId,
+            String originalFilename,
+            byte[] content) {
+        if (content == null || content.length < 5
+                || content.length > MAX_FILE_SIZE
+                || !new String(content, 0, 5, StandardCharsets.US_ASCII)
+                .equals("%PDF-")) {
+            throw new IllegalStateException(
+                    "The bundled demo PDF is invalid.");
+        }
+        DocumentFile file = filesForDocument(documentId).stream()
+                .filter(candidate ->
+                        candidate.originalFilename().equals(originalFilename))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "The bundled demo PDF metadata was not found."));
+        if (!file.isPdf() || file.fileSize() != content.length) {
+            throw new IllegalStateException(
+                    "The bundled demo PDF metadata does not match its file.");
+        }
+
+        Path destination = storedPath(file);
+        try {
+            createPrivateStorageDirectory();
+            if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)
+                    && !Files.isRegularFile(
+                    destination, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException(
+                        "The bundled demo PDF storage path is not a regular file.");
+            }
+            if (Files.isRegularFile(
+                    destination, LinkOption.NOFOLLOW_LINKS)
+                    && Arrays.equals(Files.readAllBytes(destination), content)) {
+                return;
+            }
+            Files.write(
+                    destination,
+                    content,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE);
+            restrictFilePermissions(destination);
+        } catch (IOException exception) {
+            throw new DocumentFileStorageException(
+                    "The bundled demo PDF could not be restored securely.",
+                    exception);
+        }
+    }
+
     @Transactional
     public DocumentFile upload(
             String documentId,
@@ -97,7 +157,8 @@ public class DocumentFileService {
             String category,
             int importance,
             String description,
-            String departmentId,
+            String departmentName,
+            String citizenId,
             MultipartFile upload,
             String actor) {
         String normalizedId = normalize(documentId);
@@ -105,7 +166,7 @@ public class DocumentFileService {
         String normalizedCategory = normalize(category);
         String normalizedDescription = description == null
                 ? "" : description.trim();
-        String normalizedDepartment = normalize(departmentId);
+        String normalizedDepartment = normalize(departmentName);
 
         if (!DOCUMENT_ID.matcher(normalizedId).matches()) {
             throw new IllegalArgumentException(
@@ -129,9 +190,11 @@ public class DocumentFileService {
                     "Description must be at most 60,000 UTF-8 bytes.");
         }
         if (normalizedDepartment.isBlank()
-                || !exists("SELECT COUNT(*) FROM departments WHERE department_id = ?",
-                normalizedDepartment)) {
-            throw new IllegalArgumentException("Select an existing department.");
+                || normalizedDepartment.length() > 150
+                || normalizedDepartment.chars()
+                .anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException(
+                    "Enter a department name of at most 150 characters.");
         }
         ValidatedUpload validated = validateUpload(upload);
         String originalFilename = safeOriginalFilename(upload.getOriginalFilename());
@@ -140,14 +203,18 @@ public class DocumentFileService {
                     "That document ID already exists. Choose a new ID so existing records are preserved.");
         }
 
-        documentService.addDocument(new Document(
-                normalizedId,
-                normalizedTitle,
-                normalizedCategory,
-                importance,
-                normalizedDescription));
-        documentDepartmentService.setDepartment(
-                normalizedId, normalizedDepartment, actor);
+        documentCreationService.create(
+                new Document(
+                        normalizedId,
+                        normalizedTitle,
+                        normalizedCategory,
+                        importance,
+                        normalizedDescription),
+                normalizedDepartment,
+                citizenId,
+                actor);
+        String departmentId =
+                documentDepartmentService.departmentIdForDocument(normalizedId);
 
         String storageKey = UUID.randomUUID().toString();
         Path destination = storageRoot.resolve(storageKey).normalize();
@@ -187,7 +254,7 @@ public class DocumentFileService {
             statement.setString(4, validated.contentType());
             statement.setLong(5, validated.bytes().length);
             statement.setString(6, actor);
-            statement.setString(7, normalizedDepartment);
+            statement.setString(7, departmentId);
             return statement;
         }, keyHolder);
         auditLogService.record(
@@ -220,7 +287,7 @@ public class DocumentFileService {
                 originalName == null ? "" : originalName);
         if (extension == null) {
             throw new IllegalArgumentException(
-                    "Choose a PDF, JPG, JPEG, PNG, or WEBP file.");
+                    "Choose a PDF, DOCX, JPG, JPEG, PNG, or WEBP file.");
         }
         String normalizedExtension = extension.toLowerCase(Locale.ROOT);
         byte[] bytes;
@@ -235,19 +302,86 @@ public class DocumentFileService {
                     "The selected file is empty or exceeds the 10 MB limit.");
         }
         String contentType = signatureContentType(bytes);
+        if ("docx".equals(normalizedExtension)
+                && isWordOpenXmlDocument(bytes)) {
+            contentType =
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        }
         String expectedContentType = switch (normalizedExtension) {
             case "pdf" -> "application/pdf";
             case "jpg", "jpeg" -> "image/jpeg";
             case "png" -> "image/png";
             case "webp" -> "image/webp";
+            case "docx" ->
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
             default -> null;
         };
         if (expectedContentType == null
                 || !expectedContentType.equals(contentType)) {
             throw new IllegalArgumentException(
-                    "File extension and file signature must match a supported PDF or image format.");
+                    "File extension and file signature must match a supported PDF, DOCX, or image format.");
         }
         return new ValidatedUpload(bytes, contentType);
+    }
+
+    private boolean isWordOpenXmlDocument(byte[] bytes) {
+        boolean hasDocumentXml = false;
+        boolean hasWordContentType = false;
+        int entries = 0;
+        int expandedBytes = 0;
+        try (ZipInputStream zip = new ZipInputStream(
+                new ByteArrayInputStream(bytes))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (++entries > 256) {
+                    return false;
+                }
+                String name = entry.getName();
+                if (name.startsWith("/") || name.contains("../")
+                        || name.contains("\\")
+                        || name.matches("^[A-Za-z]:.*")) {
+                    return false;
+                }
+                if ("word/document.xml".equals(name)) {
+                    hasDocumentXml = true;
+                }
+                if (hasDocumentXml && hasWordContentType) {
+                    return true;
+                }
+                if ("[Content_Types].xml".equals(name)) {
+                    ByteArrayOutputStream contentTypes =
+                            new ByteArrayOutputStream();
+                    byte[] buffer = new byte[4096];
+                    int count;
+                    while ((count = zip.read(buffer)) != -1) {
+                        expandedBytes += count;
+                        if (expandedBytes > 1_048_576) {
+                            return false;
+                        }
+                        contentTypes.write(buffer, 0, count);
+                    }
+                    String xml = contentTypes.toString(
+                            java.nio.charset.StandardCharsets.UTF_8);
+                    hasWordContentType = xml.contains(
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
+                } else {
+                    byte[] buffer = new byte[4096];
+                    int count;
+                    while ((count = zip.read(buffer)) != -1) {
+                        expandedBytes += count;
+                        if (expandedBytes > 25 * 1024 * 1024) {
+                            return false;
+                        }
+                    }
+                }
+                if (hasDocumentXml && hasWordContentType) {
+                    return true;
+                }
+            }
+        } catch (IOException exception) {
+            return false;
+        }
+        return false;
     }
 
     private String signatureContentType(byte[] bytes) {
@@ -296,11 +430,6 @@ public class DocumentFileService {
         }
         return candidate.length() <= 255
                 ? candidate : candidate.substring(candidate.length() - 255);
-    }
-
-    private boolean exists(String sql, String value) {
-        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, value);
-        return count != null && count > 0;
     }
 
     private void registerRollbackCleanup(Path path) {

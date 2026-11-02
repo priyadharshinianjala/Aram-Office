@@ -8,6 +8,8 @@ import java.util.Optional;
 public interface CitizenRepository extends JpaRepository<Citizen, String> {
     Optional<Citizen> findByCitizenIdIgnoreCase(String citizenId);
 
+    List<Citizen> findAllByOrderByFullNameAscCitizenIdAsc();
+
     List<Citizen> findByFullNameContainingIgnoreCaseOrderByFullNameAscCitizenIdAsc(
             String fullName);
 }

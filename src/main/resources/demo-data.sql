@@ -11,6 +11,19 @@ VALUES
     ('D105', 'Scholarship Scheme Order', 'Order', 5,
      'Government order describing eligibility, required documents, and application steps for the education scholarship scheme.');
 
+INSERT INTO citizens (citizen_id, full_name)
+VALUES
+    ('C001', 'Arun Kumar'),
+    ('C002', 'Priya Sharma'),
+    ('C003', 'Nandhini'),
+    ('C004', 'Meenakshi'),
+    ('C005', 'Kavitha'),
+    ('C006', 'Divya'),
+    ('C007', 'Ananya');
+
+UPDATE documents SET citizen_id = 'C001' WHERE document_id = 'D102';
+UPDATE documents SET citizen_id = 'C002' WHERE document_id = 'D105';
+
 INSERT INTO document_versions
     (document_id, version_number, text_content, is_current)
 SELECT document_id, 1, current_text, TRUE

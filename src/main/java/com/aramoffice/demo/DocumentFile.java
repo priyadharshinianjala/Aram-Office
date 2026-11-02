@@ -22,6 +22,11 @@ public record DocumentFile(
         return fileType.equals("application/pdf");
     }
 
+    public boolean isWordDocument() {
+        return fileType.equals(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    }
+
     public String formattedSize() {
         return String.format("%.2f MB", fileSize / (1024.0 * 1024.0));
     }

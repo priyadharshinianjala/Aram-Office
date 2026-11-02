@@ -27,6 +27,12 @@ public class CitizenSearchService {
     }
 
     @Transactional(readOnly = true)
+    public List<Citizen> citizensForDocumentLinking() {
+        return citizenRepository
+                .findAllByOrderByFullNameAscCitizenIdAsc();
+    }
+
+    @Transactional(readOnly = true)
     public List<Citizen> search(
             String searchTerm,
             Authentication authentication) {

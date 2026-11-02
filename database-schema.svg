@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1580" height="1040" viewBox="0 0 1580 1040" role="img" aria-labelledby="title description">
+  <title id="title">Aram Office database schema</title>
+  <desc id="description">Entity relationship diagram showing application tables for users, officers, departments, citizens, documents, file uploads, versions, access grants, and audit events.</desc>
+  <defs>
+    <style>
+      text { font-family: "Segoe UI", Arial, sans-serif; fill: #172b4d; }
+      .title { font-size: 30px; font-weight: 700; }
+      .subtitle { font-size: 14px; fill: #526581; }
+      .table { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; rx: 12; }
+      .head { fill: #153b66; }
+      .headText { fill: #ffffff; font-size: 17px; font-weight: 700; }
+      .field { font-size: 13px; }
+      .muted { fill: #64748b; }
+      .key { fill: #a55300; font-weight: 700; }
+      .relation { fill: none; stroke: #52749b; stroke-width: 2; }
+      .relationLabel { font-size: 11px; fill: #38536f; font-weight: 600; }
+      .note { font-size: 12px; fill: #526581; }
+    </style>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#52749b"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#17365c" flood-opacity=".10"/>
+    </filter>
+  </defs>
+
+  <rect width="1580" height="1040" fill="#f3f6fa"/>
+  <text x="54" y="48" class="title">Aram Office — Database Tables</text>
+  <text x="54" y="74" class="subtitle">Schema overview based on the project SQL and demo schema · arrows point from a foreign key to the referenced table</text>
+
+  <g class="relation" marker-end="url(#arrow)">
+    <path d="M415 148 H1015 V378 H1080"/>
+    <path d="M1275 210 V300"/>
+    <path d="M535 458 H415"/>
+    <path d="M235 505 V670"/>
+    <path d="M55 175 H25 V790 H55"/>
+    <path d="M745 615 V700"/>
+    <path d="M955 468 H1000 V646 H1080"/>
+    <path d="M1470 140 H1530 V646 H1470"/>
+    <path d="M1470 150 H1550 V880 H1470"/>
+  </g>
+  <g class="relationLabel">
+    <text x="810" y="137">username</text>
+    <text x="1284" y="270">department_id</text>
+    <text x="440" y="447">citizen_id (optional)</text>
+    <text x="244" y="593">citizen_id</text>
+    <text x="31" y="610" transform="rotate(-90 31 610)">username</text>
+    <text x="755" y="666">document_id</text>
+    <text x="1008" y="553" transform="rotate(-90 1008 553)">document_id</text>
+    <text x="1480" y="420" transform="rotate(-90 1480 420)">department_id</text>
+    <text x="1558" y="525" transform="rotate(-90 1558 525)">department_id</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="table" x="55" y="100" width="360" height="155"/>
+    <path class="head" d="M67 100 H403 Q415 100 415 112 V141 H55 V112 Q55 100 67 100Z"/>
+    <text class="headText" x="75" y="127">app_users</text>
+    <text class="field key" x="75" y="166">PK  username  VARCHAR(100)</text>
+    <text class="field" x="75" y="190">password_hash  VARCHAR(100)</text>
+    <text class="field" x="75" y="214">user_role  VARCHAR(20)</text>
+    <text class="note" x="75" y="238">Shared login accounts for admins and officers</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="table" x="535" y="100" width="420" height="160"/>
+    <path class="head" d="M547 100 H943 Q955 100 955 112 V141 H535 V112 Q535 100 547 100Z"/>
+    <text class="headText" x="555" y="127">audit_log</text>
+    <text class="field key" x="555" y="166">PK  audit_id  BIGINT</text>
+    <text class="field" x="555" y="190">actor_username  VARCHAR(100)</text>
+    <text class="field" x="555" y="214">action_type  VARCHAR(48)</text>
+    <text class="field" x="555" y="238">target_reference · created_at</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="table" x="1080" y="100" width="390" height="135"/>
+    <path class="head" d="M1092 100 H1458 Q1470 100 1470 112 V141 H1080 V112 Q1080 100 1092 100Z"/>
+    <text class="headText" x="1100" y="127">departments</text>
+    <text class="field key" x="1100" y="169">PK  department_id  VARCHAR(64)</text>
+    <text class="field" x="1100" y="195">department_name  VARCHAR(150) UNIQUE</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="table" x="55" y="370" width="360" height="135"/>
+    <path class="head" d="M67 370 H403 Q415 370 415 382 V411 H55 V382 Q55 370 67 370Z"/>
+    <text class="headText" x="75" y="397">citizens</text>
+    <text class="field key" x="75" y="439">PK  citizen_id  VARCHAR(64)</text>
+    <text class="field" x="75" y="466">full_name  VARCHAR(200)</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="table" x="1080" y="300" width="390" height="195"/>
+    <path class="head" d="M1092 300 H1458 Q1470 300 1470 312 V341 H1080 V312 Q1080 300 1092 300Z"/>
+    <text class="headText" x="1100" y="327">officers</text>
+    <text class="field key" x="1100" y="369">PK  officer_id  VARCHAR(64)</text>
+    <text class="field" x="1100" y="393">full_name  VARCHAR(200)</text>
+    <text class="field" x="1100" y="417">FK  username  → app_users.username</text>
+    <text class="field" x="1100" y="441">FK  department_id  → departments (nullable)</text>
+    <text class="field" x="1100" y="465">enabled  BOOLEAN</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="table" x="535" y="370" width="420" height="245"/>
+    <path class="head" d="M547 370 H943 Q955 370 955 382 V411 H535 V382 Q535 370 547 370Z"/>
+    <text class="headText" x="555" y="397">documents</text>
+    <text class="field key" x="555" y="439">PK  document_id  VARCHAR(10)</text>
+    <text class="field" x="555" y="463">title  VARCHAR(200)</text>
+    <text class="field" x="555" y="487">category · importance</text>
+    <text class="field" x="555" y="511">current_text  TEXT</text>
+    <text class="field" x="555" y="535">FK  citizen_id  → citizens (nullable)</text>
+    <text class="note" x="555" y="581">Document metadata and searchable content</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="table" x="1080" y="545" width="390" height="205"/>
+    <path class="head" d="M1092 545 H1458 Q1470 545 1470 557 V586 H1080 V557 Q1080 545 1092 545Z"/>
+    <text class="headText" x="1100" y="572">document_files</text>
+    <text class="field key" x="1100" y="614">PK  file_id  BIGINT</text>
+    <text class="field" x="1100" y="638">FK  document_id  → documents</text>
+    <text class="field" x="1100" y="662">FK  department_id  → departments</text>
+    <text class="field" x="1100" y="686">stored_filename · original_filename</text>
+    <text class="field" x="1100" y="710">file_type · file_size · uploaded_by</text>
+    <text class="field" x="1100" y="734">uploaded_at</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="table" x="55" y="670" width="390" height="160"/>
+    <path class="head" d="M67 670 H433 Q445 670 445 682 V711 H55 V682 Q55 670 67 670Z"/>
+    <text class="headText" x="75" y="697">citizen_user_access</text>
+    <text class="field key" x="75" y="739">PK, FK  username  → app_users</text>
+    <text class="field key" x="75" y="763">PK, FK  citizen_id  → citizens</text>
+    <text class="note" x="75" y="803">Grants limited users access to citizen records</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="table" x="535" y="700" width="420" height="160"/>
+    <path class="head" d="M547 700 H943 Q955 700 955 712 V741 H535 V712 Q535 700 547 700Z"/>
+    <text class="headText" x="555" y="727">document_versions</text>
+    <text class="field key" x="555" y="769">PK  version_id</text>
+    <text class="field" x="555" y="793">FK  document_id  → documents</text>
+    <text class="field" x="555" y="817">version_number · text_content</text>
+    <text class="field" x="555" y="841">is_current · created_at</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect class="table" x="1080" y="800" width="390" height="160"/>
+    <path class="head" d="M1092 800 H1458 Q1470 800 1470 812 V841 H1080 V812 Q1080 800 1092 800Z"/>
+    <text class="headText" x="1100" y="827">document_departments</text>
+    <text class="field key" x="1100" y="869">PK, FK  document_id  → documents</text>
+    <text class="field" x="1100" y="893">FK  department_id  → departments</text>
+    <text class="note" x="1100" y="933">One department label per document</text>
+  </g>
+
+  <rect x="55" y="900" width="900" height="60" rx="10" fill="#e7eef7" stroke="#cfdae7"/>
+  <text class="note" x="75" y="925">Note: This diagram reflects the project’s SQL definitions, not a live database inspection.</text>
+  <text class="note" x="75" y="946">Audit actor_username is recorded as text; the schema does not define a foreign key for it.</text>
+  <text x="55" y="1000" class="subtitle">Aram Office · E-Governance Document Processing and Retrieval System</text>
+</svg>

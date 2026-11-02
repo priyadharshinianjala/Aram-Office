@@ -95,6 +95,15 @@
                  th:text="${documentDepartment}">Department</div>
         </div>
 
+        <div th:if="${linkedCitizen != null}">
+            <div class="details-label">Linked person</div>
+            <div class="details-value">
+                <span th:text="${linkedCitizen.fullName}">Citizen name</span>
+                · ID:
+                <span th:text="${linkedCitizen.citizenId}">Citizen ID</span>
+            </div>
+        </div>
+
         <div class="details-label">Importance Level</div>
         <div class="details-value">
             <span th:text="${document.importance}">5</span> / 5
@@ -113,7 +122,7 @@
                       th:text="${#lists.size(documentFiles)} + ' file(s)'">0 files</span>
             </div>
             <p th:if="${#lists.isEmpty(documentFiles)}">
-                This record has no original PDF or image file attached.
+                This record has no original document file attached.
             </p>
             <div class="file-list">
                 <article class="file-card" th:each="file : ${documentFiles}">
@@ -133,7 +142,7 @@
                         <strong th:text="${file.departmentName}">Department</strong>
                     </p>
                     <div class="file-actions">
-                        <a class="file-action-link"
+                        <a class="file-action-link" th:if="${file.pdf or file.image}"
                            th:href="@{/documents/{id}/files/{fileId}/preview(id=${document.id},fileId=${file.fileId})}"
                            target="_blank" rel="noopener">Open preview</a>
                         <a class="file-action-link"
@@ -147,6 +156,9 @@
                     <iframe class="file-preview-frame" th:if="${file.pdf}"
                             th:src="@{/documents/{id}/files/{fileId}/preview(id=${document.id},fileId=${file.fileId})}"
                             title="PDF document preview"></iframe>
+                    <p th:if="${file.wordDocument}">
+                        Word documents cannot be previewed here. Download the original file to open it.
+                    </p>
                 </article>
             </div>
         </section>
