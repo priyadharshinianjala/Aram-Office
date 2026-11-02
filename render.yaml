@@ -43,4 +43,3 @@ databases:
     user: aram_app
     plan: free
     region: oregon
-    postgresVersion: "16"
